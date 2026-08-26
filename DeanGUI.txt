@@ -1,317 +1,402 @@
 local Players = game:GetService("Players")
-local RunService = game:GetService("RunService")
+local TweenService = game:GetService("TweenService")
 local UserInputService = game:GetService("UserInputService")
+local RunService = game:GetService("RunService")
+local CoreGui = game:GetService("CoreGui")
 
 local player = Players.LocalPlayer
+local character = player.Character or player.CharacterAdded:Wait()
+local humanoid = character:WaitForChild("Humanoid")
+local animator = humanoid:WaitForChild("Animator")
 
-local DASH_ANIMATION_ID = "rbxassetid://104716596249497"
-local MIN_DISTANCE = 10
-local MAX_DISTANCE = 45
-local DASH_SPEED = 100
-local WALL_BOUNCE_ANGLE = 0.35
-local COOLDOWN = 0.5
+-- Animation Configuration
+local ANIMATIONS = {
+    Spin = {
+        id = "rbxassetid://74190365770915",
+        loop = true,
+        priority = Enum.AnimationPriority.Action,
+        name = "Spin"
+    },
+    ["Hand on Heart"] = {
+        id = "rbxassetid://70730549697056", 
+        loop = true,
+        priority = Enum.AnimationPriority.Action,
+        name = "Hand on Heart",
+        note = "Will NOT affect legs"
+    },
+    Blow = {
+        id = "rbxassetid://71241699194750",
+        loop = false,
+        priority = Enum.AnimationPriority.Action4, -- Higher priority to override movement
+        name = "Blow",
+        note = "Pauses at last frame. Cannot move while playing"
+    },
+    Headshake = {
+        id = "rbxassetid://73368435055894",
+        loop = true,
+        priority = Enum.AnimationPriority.Action,
+        name = "Headshake"
+    }
+}
 
-local dashDistance = 25
-local canDash = true
-local dashing = false
-
-local character
-local humanoid
-local root
-local animationTrack
-
-local function setupCharacter(char)
-	character = char
-	humanoid = char:WaitForChild("Humanoid")
-	root = char:WaitForChild("HumanoidRootPart")
+-- GUI Creation
+local function randomString()
+    local length = math.random(10,20)
+    local array = {}
+    for i = 1, length do
+        array[i] = string.char(math.random(32, 126))
+    end
+    return table.concat(array)
 end
 
-setupCharacter(player.Character or player.CharacterAdded:Wait())
-player.CharacterAdded:Connect(setupCharacter)
-
-local animation = Instance.new("Animation")
-animation.AnimationId = DASH_ANIMATION_ID
-
-local function playDashAnimation()
-	if not humanoid then
-		return
-	end
-
-	if animationTrack then
-		animationTrack:Stop(0.05)
-	end
-
-	animationTrack = humanoid:LoadAnimation(animation)
-	animationTrack.Priority = Enum.AnimationPriority.Action
-	animationTrack:Play(0.05)
+local PARENT = nil
+if get_hidden_gui or gethui then
+    local hiddenUI = get_hidden_gui or gethui
+    local Main = Instance.new("ScreenGui")
+    Main.Name = randomString()
+    Main.Parent = hiddenUI()
+    PARENT = Main
+elseif (not is_sirhurt_closure) and (syn and syn.protect_gui) then
+    local Main = Instance.new("ScreenGui")
+    Main.Name = randomString()
+    syn.protect_gui(Main)
+    Main.Parent = CoreGui
+    PARENT = Main
+elseif CoreGui:FindFirstChild('RobloxGui') then
+    PARENT = CoreGui.RobloxGui
+else
+    local Main = Instance.new("ScreenGui")
+    Main.Name = randomString()
+    Main.Parent = CoreGui
+    PARENT = Main
 end
 
-local gui = Instance.new("ScreenGui")
-gui.Name = "DeanGUI"
-gui.ResetOnSpawn = false
-gui.Parent = player:WaitForChild("PlayerGui")
+-- Main Frame
+local MainFrame = Instance.new("Frame")
+MainFrame.Name = "ICEQUEEN_GUI"
+MainFrame.Parent = PARENT
+MainFrame.Active = true
+MainFrame.BackgroundColor3 = Color3.fromRGB(26, 26, 46)
+MainFrame.BorderSizePixel = 0
+MainFrame.Position = UDim2.new(0.5, -150, 0.5, -150)
+MainFrame.Size = UDim2.new(0, 300, 0, 280)
+MainFrame.ZIndex = 10
 
-local main = Instance.new("Frame")
-main.Name = "Main"
-main.Size = UDim2.fromOffset(220, 135)
-main.Position = UDim2.new(0, 25, 0.5, -67)
-main.BackgroundColor3 = Color3.fromRGB(25, 25, 30)
-main.BorderSizePixel = 0
-main.Active = true
-main.Parent = gui
+-- Corner Radius
+local Corner = Instance.new("UICorner")
+Corner.CornerRadius = UDim.new(0, 8)
+Corner.Parent = MainFrame
 
-local corner = Instance.new("UICorner")
-corner.CornerRadius = UDim.new(0, 10)
-corner.Parent = main
+-- Title Bar
+local TitleBar = Instance.new("Frame")
+TitleBar.Name = "TitleBar"
+TitleBar.Parent = MainFrame
+TitleBar.BackgroundColor3 = Color3.fromRGB(74, 144, 217)
+TitleBar.BorderSizePixel = 0
+TitleBar.Size = UDim2.new(1, 0, 0, 30)
+TitleBar.ZIndex = 11
 
-local title = Instance.new("TextLabel")
-title.Size = UDim2.new(1, 0, 0, 35)
-title.BackgroundTransparency = 1
-title.Text = "DeanGUI"
-title.TextColor3 = Color3.fromRGB(255, 255, 255)
-title.TextSize = 22
-title.Font = Enum.Font.GothamBold
-title.Active = true
-title.Parent = main
+local TitleCorner = Instance.new("UICorner")
+TitleCorner.CornerRadius = UDim.new(0, 8)
+TitleCorner.Parent = TitleBar
 
-local distanceLabel = Instance.new("TextLabel")
-distanceLabel.Position = UDim2.fromOffset(10, 40)
-distanceLabel.Size = UDim2.new(1, -20, 0, 25)
-distanceLabel.BackgroundTransparency = 1
-distanceLabel.Text = "Dash Distance: 25"
-distanceLabel.TextColor3 = Color3.fromRGB(220, 220, 220)
-distanceLabel.TextSize = 15
-distanceLabel.Font = Enum.Font.Gotham
-distanceLabel.Parent = main
+-- Fix bottom corners of title bar
+local TitleFix = Instance.new("Frame")
+TitleFix.Parent = TitleBar
+TitleFix.BackgroundColor3 = Color3.fromRGB(74, 144, 217)
+TitleFix.BorderSizePixel = 0
+TitleFix.Position = UDim2.new(0, 0, 0.5, 0)
+TitleFix.Size = UDim2.new(1, 0, 0.5, 0)
+TitleFix.ZIndex = 11
 
-local sliderBackground = Instance.new("Frame")
-sliderBackground.Position = UDim2.fromOffset(15, 70)
-sliderBackground.Size = UDim2.new(1, -30, 0, 8)
-sliderBackground.BackgroundColor3 = Color3.fromRGB(60, 60, 70)
-sliderBackground.BorderSizePixel = 0
-sliderBackground.Parent = main
+local TitleText = Instance.new("TextLabel")
+TitleText.Name = "Title"
+TitleText.Parent = TitleBar
+TitleText.BackgroundTransparency = 1
+TitleText.Size = UDim2.new(1, -40, 1, 0)
+TitleText.Position = UDim2.new(0, 10, 0, 0)
+TitleText.Font = Enum.Font.SourceSansBold
+TitleText.TextSize = 18
+TitleText.Text = "❄️ ICEQUEEN_GUI ❄️"
+TitleText.TextColor3 = Color3.new(1, 1, 1)
+TitleText.TextXAlignment = Enum.TextXAlignment.Left
+TitleText.ZIndex = 12
 
-local sliderCorner = Instance.new("UICorner")
-sliderCorner.CornerRadius = UDim.new(1, 0)
-sliderCorner.Parent = sliderBackground
+-- Close Button
+local CloseBtn = Instance.new("TextButton")
+CloseBtn.Name = "Close"
+CloseBtn.Parent = TitleBar
+CloseBtn.BackgroundColor3 = Color3.fromRGB(200, 50, 50)
+CloseBtn.BorderSizePixel = 0
+CloseBtn.Position = UDim2.new(1, -28, 0, 4)
+CloseBtn.Size = UDim2.new(0, 22, 0, 22)
+CloseBtn.Font = Enum.Font.SourceSansBold
+CloseBtn.TextSize = 14
+CloseBtn.Text = "X"
+CloseBtn.TextColor3 = Color3.new(1, 1, 1)
+CloseBtn.ZIndex = 12
 
-local sliderButton = Instance.new("TextButton")
-sliderButton.Size = UDim2.fromOffset(18, 18)
-sliderButton.AnchorPoint = Vector2.new(0.5, 0.5)
-sliderButton.Position = UDim2.new(
-	(dashDistance - MIN_DISTANCE) / (MAX_DISTANCE - MIN_DISTANCE),
-	0,
-	0.5,
-	0
-)
-sliderButton.BackgroundColor3 = Color3.fromRGB(80, 170, 255)
-sliderButton.Text = ""
-sliderButton.BorderSizePixel = 0
-sliderButton.Parent = sliderBackground
+local CloseCorner = Instance.new("UICorner")
+CloseCorner.CornerRadius = UDim.new(0, 4)
+CloseCorner.Parent = CloseBtn
 
-local sliderButtonCorner = Instance.new("UICorner")
-sliderButtonCorner.CornerRadius = UDim.new(1, 0)
-sliderButtonCorner.Parent = sliderButton
+-- Content Area
+local Content = Instance.new("Frame")
+Content.Name = "Content"
+Content.Parent = MainFrame
+Content.BackgroundTransparency = 1
+Content.Position = UDim2.new(0, 0, 0, 35)
+Content.Size = UDim2.new(1, 0, 1, -35)
+Content.ZIndex = 10
 
-local draggingSlider = false
+-- Status Label
+local StatusLabel = Instance.new("TextLabel")
+StatusLabel.Name = "Status"
+StatusLabel.Parent = Content
+StatusLabel.BackgroundColor3 = Color3.fromRGB(15, 52, 96)
+StatusLabel.BorderSizePixel = 0
+StatusLabel.Position = UDim2.new(0, 10, 0, 5)
+StatusLabel.Size = UDim2.new(1, -20, 0, 25)
+StatusLabel.Font = Enum.Font.SourceSans
+StatusLabel.TextSize = 14
+StatusLabel.Text = "Status: Idle"
+StatusLabel.TextColor3 = Color3.fromRGB(135, 206, 235)
+StatusLabel.ZIndex = 11
 
-local function updateSlider(mouseX)
-	local absoluteX = sliderBackground.AbsolutePosition.X
-	local width = sliderBackground.AbsoluteSize.X
+local StatusCorner = Instance.new("UICorner")
+StatusCorner.CornerRadius = UDim.new(0, 4)
+StatusCorner.Parent = StatusLabel
 
-	local percentage = math.clamp(
-		(mouseX - absoluteX) / width,
-		0,
-		1
-	)
+-- Animation Buttons Container
+local ButtonContainer = Instance.new("Frame")
+ButtonContainer.Name = "Buttons"
+ButtonContainer.Parent = Content
+ButtonContainer.BackgroundTransparency = 1
+ButtonContainer.Position = UDim2.new(0, 10, 0, 40)
+ButtonContainer.Size = UDim2.new(1, -20, 1, -80)
+ButtonContainer.ZIndex = 10
 
-	dashDistance = math.floor(
-		MIN_DISTANCE + (MAX_DISTANCE - MIN_DISTANCE) * percentage + 0.5
-	)
+local UIListLayout = Instance.new("UIListLayout")
+UIListLayout.Parent = ButtonContainer
+UIListLayout.SortOrder = Enum.SortOrder.LayoutOrder
+UIListLayout.Padding = UDim.new(0, 8)
 
-	distanceLabel.Text = "Dash Distance: " .. dashDistance
+-- Stop Button (at bottom)
+local StopBtn = Instance.new("TextButton")
+StopBtn.Name = "Stop"
+StopBtn.Parent = Content
+StopBtn.BackgroundColor3 = Color3.fromRGB(200, 50, 50)
+StopBtn.BorderSizePixel = 0
+StopBtn.Position = UDim2.new(0, 10, 1, -35)
+StopBtn.Size = UDim2.new(1, -20, 0, 30)
+StopBtn.Font = Enum.Font.SourceSansBold
+StopBtn.TextSize = 16
+StopBtn.Text = "⏹ STOP ANIMATION"
+StopBtn.TextColor3 = Color3.new(1, 1, 1)
+StopBtn.ZIndex = 11
 
-	sliderButton.Position = UDim2.new(
-		percentage,
-		0,
-		0.5,
-		0
-	)
+local StopCorner = Instance.new("UICorner")
+StopCorner.CornerRadius = UDim.new(0, 6)
+StopCorner.Parent = StopBtn
+
+-- Animation State
+local currentTrack = nil
+local currentAnimName = nil
+local isBlowPlaying = false
+
+-- Function to stop current animation
+local function stopCurrentAnimation()
+    if currentTrack then
+        currentTrack:Stop(0.2)
+        currentTrack = nil
+    end
+    currentAnimName = nil
+    isBlowPlaying = false
+    StatusLabel.Text = "Status: Idle"
+    StatusLabel.TextColor3 = Color3.fromRGB(135, 206, 235)
+    
+    -- Re-enable movement if it was disabled
+    if humanoid then
+        humanoid.WalkSpeed = 16
+        humanoid.JumpPower = 50
+        humanoid.AutoRotate = true
+    end
 end
 
-sliderButton.MouseButton1Down:Connect(function()
-	draggingSlider = true
-end)
-
-sliderBackground.InputBegan:Connect(function(input)
-	if input.UserInputType == Enum.UserInputType.MouseButton1 then
-		updateSlider(input.Position.X)
-		draggingSlider = true
-	end
-end)
-
-UserInputService.InputChanged:Connect(function(input)
-	if draggingSlider and input.UserInputType == Enum.UserInputType.MouseMovement then
-		updateSlider(input.Position.X)
-	end
-end)
-
-UserInputService.InputEnded:Connect(function(input)
-	if input.UserInputType == Enum.UserInputType.MouseButton1 then
-		draggingSlider = false
-	end
-end)
-
-local dashButton = Instance.new("TextButton")
-dashButton.Position = UDim2.fromOffset(15, 92)
-dashButton.Size = UDim2.new(1, -30, 0, 32)
-dashButton.BackgroundColor3 = Color3.fromRGB(55, 130, 220)
-dashButton.Text = "DASH"
-dashButton.TextColor3 = Color3.fromRGB(255, 255, 255)
-dashButton.TextSize = 16
-dashButton.Font = Enum.Font.GothamBold
-dashButton.BorderSizePixel = 0
-dashButton.Parent = main
-
-local dashCorner = Instance.new("UICorner")
-dashCorner.CornerRadius = UDim.new(0, 7)
-dashCorner.Parent = dashButton
-
-local draggingGui = false
-local dragStart
-local startPosition
-
-local function updateGuiDrag(input)
-	local delta = input.Position - dragStart
-
-	main.Position = UDim2.new(
-		startPosition.X.Scale,
-		startPosition.X.Offset + delta.X,
-		startPosition.Y.Scale,
-		startPosition.Y.Offset + delta.Y
-	)
+-- Function to play animation
+local function playAnimation(animName, animData)
+    -- Stop current animation first (smooth transition)
+    if currentTrack then
+        currentTrack:Stop(0.15)
+        task.wait(0.15)
+    end
+    
+    -- Load and play new animation
+    local anim = Instance.new("Animation")
+    anim.AnimationId = animData.id
+    
+    local track = animator:LoadAnimation(anim)
+    track.Priority = animData.priority or Enum.AnimationPriority.Action
+    
+    if animData.loop then
+        track.Looped = true
+    else
+        track.Looped = false
+    end
+    
+    track:Play(0.2)
+    
+    currentTrack = track
+    currentAnimName = animName
+    
+    -- Update status
+    StatusLabel.Text = "Status: Playing \"" .. animName .. "\""
+    StatusLabel.TextColor3 = Color3.fromRGB(100, 255, 100)
+    
+    -- Handle Blow special case (cannot move, pauses at end)
+    if animName == "Blow" then
+        isBlowPlaying = true
+        humanoid.WalkSpeed = 0
+        humanoid.JumpPower = 0
+        humanoid.AutoRotate = false
+        
+        -- Wait for animation to finish
+        track.Stopped:Connect(function()
+            if currentAnimName == "Blow" then
+                -- Pause at last frame
+                track.TimePosition = track.Length - 0.05
+                StatusLabel.Text = "Status: Blow (Paused at end)"
+                StatusLabel.TextColor3 = Color3.fromRGB(255, 200, 100)
+            end
+        end)
+    else
+        isBlowPlaying = false
+        humanoid.WalkSpeed = 16
+        humanoid.JumpPower = 50
+        humanoid.AutoRotate = true
+    end
+    
+    -- Clean up animation object
+    anim:Destroy()
 end
 
-title.InputBegan:Connect(function(input)
-	if input.UserInputType == Enum.UserInputType.MouseButton1
-		or input.UserInputType == Enum.UserInputType.Touch then
-
-		draggingGui = true
-		dragStart = input.Position
-		startPosition = main.Position
-	end
-end)
-
-UserInputService.InputChanged:Connect(function(input)
-	if draggingGui and (
-		input.UserInputType == Enum.UserInputType.MouseMovement
-		or input.UserInputType == Enum.UserInputType.Touch
-	) then
-		updateGuiDrag(input)
-	end
-end)
-
-UserInputService.InputEnded:Connect(function(input)
-	if input.UserInputType == Enum.UserInputType.MouseButton1
-		or input.UserInputType == Enum.UserInputType.Touch then
-		draggingGui = false
-	end
-end)
-
-local rayParams = RaycastParams.new()
-rayParams.FilterType = Enum.RaycastFilterType.Exclude
-
-local function getBounceDirection(direction, normal)
-	local reflected = direction - 2 * direction:Dot(normal) * normal
-
-	if math.abs(direction:Dot(normal)) < WALL_BOUNCE_ANGLE then
-		return reflected.Unit
-	end
-
-	return nil
+-- Create buttons for each animation
+for animName, animData in pairs(ANIMATIONS) do
+    local btn = Instance.new("TextButton")
+    btn.Name = animName
+    btn.Parent = ButtonContainer
+    btn.BackgroundColor3 = Color3.fromRGB(15, 52, 96)
+    btn.BorderSizePixel = 0
+    btn.Size = UDim2.new(1, 0, 0, 40)
+    btn.Font = Enum.Font.SourceSansBold
+    btn.TextSize = 15
+    btn.Text = animName
+    btn.TextColor3 = Color3.new(1, 1, 1)
+    btn.ZIndex = 11
+    btn.LayoutOrder = 0
+    
+    local btnCorner = Instance.new("UICorner")
+    btnCorner.CornerRadius = UDim.new(0, 6)
+    btnCorner.Parent = btn
+    
+    -- Hover effects
+    btn.MouseEnter:Connect(function()
+        TweenService:Create(btn, TweenInfo.new(0.2), {BackgroundColor3 = Color3.fromRGB(74, 144, 217)}):Play()
+    end)
+    
+    btn.MouseLeave:Connect(function()
+        if currentAnimName ~= animName then
+            TweenService:Create(btn, TweenInfo.new(0.2), {BackgroundColor3 = Color3.fromRGB(15, 52, 96)}):Play()
+        end
+    end)
+    
+    -- Click handler
+    btn.MouseButton1Click:Connect(function()
+        -- Reset all button colors
+        for _, child in pairs(ButtonContainer:GetChildren()) do
+            if child:IsA("TextButton") then
+                TweenService:Create(child, TweenInfo.new(0.2), {BackgroundColor3 = Color3.fromRGB(15, 52, 96)}):Play()
+            end
+        end
+        
+        -- Highlight active button
+        TweenService:Create(btn, TweenInfo.new(0.2), {BackgroundColor3 = Color3.fromRGB(100, 200, 100)}):Play()
+        
+        playAnimation(animName, animData)
+    end)
 end
 
-local function dash()
-	if not canDash or dashing then
-		return
-	end
+-- Stop button handler
+StopBtn.MouseButton1Click:Connect(function()
+    stopCurrentAnimation()
+    -- Reset all button colors
+    for _, child in pairs(ButtonContainer:GetChildren()) do
+        if child:IsA("TextButton") then
+            TweenService:Create(child, TweenInfo.new(0.2), {BackgroundColor3 = Color3.fromRGB(15, 52, 96)}):Play()
+        end
+    end
+end)
 
-	if not character or not humanoid or not root then
-		return
-	end
+-- Close button handler
+CloseBtn.MouseButton1Click:Connect(function()
+    stopCurrentAnimation()
+    MainFrame:TweenPosition(UDim2.new(0.5, -150, 0, -300), "InOut", "Quart", 0.5, true, nil)
+    task.wait(0.5)
+    MainFrame:Destroy()
+end)
 
-	if humanoid.Health <= 0 then
-		return
-	end
+-- Drag functionality (same as Infinite Yield)
+local function dragGUI(gui)
+    task.spawn(function()
+        local dragging
+        local dragInput
+        local dragStart = Vector3.new(0,0,0)
+        local startPos
+        local function update(input)
+            local delta = input.Position - dragStart
+            local Position = UDim2.new(startPos.X.Scale, startPos.X.Offset + delta.X, startPos.Y.Scale, startPos.Y.Offset + delta.Y)
+            TweenService:Create(gui, TweenInfo.new(.20), {Position = Position}):Play()
+        end
+        gui.InputBegan:Connect(function(input)
+            if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
+                dragging = true
+                dragStart = input.Position
+                startPos = gui.Position
 
-	canDash = false
-	dashing = true
-
-	playDashAnimation()
-
-	rayParams.FilterDescendantsInstances = {character}
-
-	local direction = root.CFrame.LookVector
-	local remainingDistance = dashDistance
-	local maxBounces = 3
-	local bounceCount = 0
-
-	while remainingDistance > 0 and dashing and character.Parent do
-		local startPosition = root.Position
-		local deltaTime = RunService.Heartbeat:Wait()
-		local frameDistance = math.min(
-			DASH_SPEED * deltaTime,
-			remainingDistance
-		)
-
-		local result = workspace:Raycast(
-			startPosition,
-			direction * frameDistance,
-			rayParams
-		)
-
-		if result then
-			local hitPosition = result.Position
-			local traveled = (hitPosition - startPosition).Magnitude
-
-			root.CFrame = CFrame.lookAt(
-				hitPosition - direction * 0.15,
-				hitPosition - direction * 0.15 + direction
-			)
-
-			remainingDistance -= traveled
-
-			local newDirection = getBounceDirection(
-				direction,
-				result.Normal
-			)
-
-			if newDirection and bounceCount < maxBounces then
-				bounceCount += 1
-				direction = newDirection
-			else
-				break
-			end
-		else
-			local newPosition = startPosition + direction * frameDistance
-
-			root.CFrame = CFrame.lookAt(
-				newPosition,
-				newPosition + direction
-			)
-
-			remainingDistance -= frameDistance
-		end
-	end
-
-	dashing = false
-
-	if animationTrack then
-		animationTrack:Stop(0.1)
-	end
-
-	task.wait(COOLDOWN)
-	canDash = true
+                input.Changed:Connect(function()
+                    if input.UserInputState == Enum.UserInputState.End then
+                        dragging = false
+                    end
+                end)
+            end
+        end)
+        gui.InputChanged:Connect(function(input)
+            if input.UserInputType == Enum.UserInputType.MouseMovement or input.UserInputType == Enum.UserInputType.Touch then
+                dragInput = input
+            end
+        end)
+        UserInputService.InputChanged:Connect(function(input)
+            if input == dragInput and dragging then
+                update(input)
+            end
+        end)
+    end)
 end
 
-dashButton.MouseButton1Click:Connect(dash)
+dragGUI(MainFrame)
+
+-- Character respawn handler
+player.CharacterAdded:Connect(function(newChar)
+    character = newChar
+    humanoid = newChar:WaitForChild("Humanoid")
+    animator = humanoid:WaitForChild("Animator")
+    stopCurrentAnimation()
+end)
+
+-- Initial animation setup
+if not animator then
+    animator = humanoid:WaitForChild("Animator")
+end
+
+print("ICEQUEEN_GUI loaded successfully!")
+print("Animations available: Spin, Hand on Heart, Blow, Headshake")
