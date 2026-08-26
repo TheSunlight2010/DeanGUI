@@ -12,27 +12,27 @@ local animator = humanoid:WaitForChild("Animator")
 -- Animation Configuration
 local ANIMATIONS = {
     Spin = {
-        id = "rbxassetid://74190365770915",
+        id = "rbxassetid://188632011",
         loop = true,
         priority = Enum.AnimationPriority.Action,
         name = "Spin"
     },
     ["Hand on Heart"] = {
-        id = "rbxassetid://70730549697056", 
+        id = "rbxassetid://10714010337", 
         loop = true,
         priority = Enum.AnimationPriority.Action,
         name = "Hand on Heart",
         note = "Will NOT affect legs"
     },
     Blow = {
-        id = "rbxassetid://71241699194750",
+        id = "rbxassetid://10714372526",
         loop = false,
         priority = Enum.AnimationPriority.Action4, -- Higher priority to override movement
         name = "Blow",
         note = "Pauses at last frame. Cannot move while playing"
     },
     Headshake = {
-        id = "rbxassetid://73368435055894",
+        id = "rbxassetid://10714065137",
         loop = true,
         priority = Enum.AnimationPriority.Action,
         name = "Headshake"
