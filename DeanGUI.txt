@@ -18,34 +18,58 @@ local dashing = false
 local character
 local humanoid
 local root
+local animator
 local animationTrack
+
+-- Animation
+local animation = Instance.new("Animation")
+animation.AnimationId = DASH_ANIMATION_ID
 
 local function setupCharacter(char)
 	character = char
 	humanoid = char:WaitForChild("Humanoid")
 	root = char:WaitForChild("HumanoidRootPart")
+	animator = humanoid:WaitForChild("Animator")
+
+	-- Stop old track if necessary
+	if animationTrack then
+		animationTrack:Stop(0)
+		animationTrack = nil
+	end
+
+	-- Load animation through the character's Animator
+	animationTrack = animator:LoadAnimation(animation)
+	animationTrack.Priority = Enum.AnimationPriority.Action
+	animationTrack.Looped = false
 end
 
 setupCharacter(player.Character or player.CharacterAdded:Wait())
-player.CharacterAdded:Connect(setupCharacter)
 
-local animation = Instance.new("Animation")
-animation.AnimationId = DASH_ANIMATION_ID
+player.CharacterAdded:Connect(function(char)
+	dashing = false
+	canDash = true
+	setupCharacter(char)
+end)
 
 local function playDashAnimation()
-	if not humanoid then
+	if not animationTrack then
 		return
 	end
 
-	if animationTrack then
+	if animationTrack.IsPlaying then
 		animationTrack:Stop(0.05)
 	end
 
-	animationTrack = humanoid:LoadAnimation(animation)
-	animationTrack.Priority = Enum.AnimationPriority.Action
 	animationTrack:Play(0.05)
 end
 
+local function stopDashAnimation()
+	if animationTrack and animationTrack.IsPlaying then
+		animationTrack:Stop(0.1)
+	end
+end
+
+-- GUI
 local gui = Instance.new("ScreenGui")
 gui.Name = "DeanGUI"
 gui.ResetOnSpawn = false
@@ -126,7 +150,9 @@ local function updateSlider(mouseX)
 	)
 
 	dashDistance = math.floor(
-		MIN_DISTANCE + (MAX_DISTANCE - MIN_DISTANCE) * percentage + 0.5
+		MIN_DISTANCE
+			+ (MAX_DISTANCE - MIN_DISTANCE) * percentage
+			+ 0.5
 	)
 
 	distanceLabel.Text = "Dash Distance: " .. dashDistance
@@ -151,7 +177,9 @@ sliderBackground.InputBegan:Connect(function(input)
 end)
 
 UserInputService.InputChanged:Connect(function(input)
-	if draggingSlider and input.UserInputType == Enum.UserInputType.MouseMovement then
+	if draggingSlider
+		and input.UserInputType == Enum.UserInputType.MouseMovement then
+
 		updateSlider(input.Position.X)
 	end
 end)
@@ -162,6 +190,7 @@ UserInputService.InputEnded:Connect(function(input)
 	end
 end)
 
+-- Dash button
 local dashButton = Instance.new("TextButton")
 dashButton.Position = UDim2.fromOffset(15, 92)
 dashButton.Size = UDim2.new(1, -30, 0, 32)
@@ -177,6 +206,7 @@ local dashCorner = Instance.new("UICorner")
 dashCorner.CornerRadius = UDim.new(0, 7)
 dashCorner.Parent = dashButton
 
+-- GUI dragging
 local draggingGui = false
 local dragStart
 local startPosition
@@ -203,10 +233,12 @@ title.InputBegan:Connect(function(input)
 end)
 
 UserInputService.InputChanged:Connect(function(input)
-	if draggingGui and (
-		input.UserInputType == Enum.UserInputType.MouseMovement
-		or input.UserInputType == Enum.UserInputType.Touch
-	) then
+	if draggingGui
+		and (
+			input.UserInputType == Enum.UserInputType.MouseMovement
+			or input.UserInputType == Enum.UserInputType.Touch
+		) then
+
 		updateGuiDrag(input)
 	end
 end)
@@ -214,15 +246,18 @@ end)
 UserInputService.InputEnded:Connect(function(input)
 	if input.UserInputType == Enum.UserInputType.MouseButton1
 		or input.UserInputType == Enum.UserInputType.Touch then
+
 		draggingGui = false
 	end
 end)
 
+-- Raycast
 local rayParams = RaycastParams.new()
 rayParams.FilterType = Enum.RaycastFilterType.Exclude
 
 local function getBounceDirection(direction, normal)
-	local reflected = direction - 2 * direction:Dot(normal) * normal
+	local reflected =
+		direction - 2 * direction:Dot(normal) * normal
 
 	if math.abs(direction:Dot(normal)) < WALL_BOUNCE_ANGLE then
 		return reflected.Unit
@@ -231,6 +266,7 @@ local function getBounceDirection(direction, normal)
 	return nil
 end
 
+-- Dash
 local function dash()
 	if not canDash or dashing then
 		return
@@ -247,18 +283,28 @@ local function dash()
 	canDash = false
 	dashing = true
 
+	-- This is played through the character's Animator,
+	-- allowing Roblox's normal character animation
+	-- replication to handle the animation.
 	playDashAnimation()
 
 	rayParams.FilterDescendantsInstances = {character}
 
 	local direction = root.CFrame.LookVector
 	local remainingDistance = dashDistance
+
 	local maxBounces = 3
 	local bounceCount = 0
 
-	while remainingDistance > 0 and dashing and character.Parent do
+	while remainingDistance > 0
+		and dashing
+		and character.Parent
+		and humanoid.Health > 0 do
+
 		local startPosition = root.Position
+
 		local deltaTime = RunService.Heartbeat:Wait()
+
 		local frameDistance = math.min(
 			DASH_SPEED * deltaTime,
 			remainingDistance
@@ -272,11 +318,16 @@ local function dash()
 
 		if result then
 			local hitPosition = result.Position
-			local traveled = (hitPosition - startPosition).Magnitude
+
+			local traveled =
+				(hitPosition - startPosition).Magnitude
+
+			local newPosition =
+				hitPosition - direction * 0.15
 
 			root.CFrame = CFrame.lookAt(
-				hitPosition - direction * 0.15,
-				hitPosition - direction * 0.15 + direction
+				newPosition,
+				newPosition + direction
 			)
 
 			remainingDistance -= traveled
@@ -293,7 +344,8 @@ local function dash()
 				break
 			end
 		else
-			local newPosition = startPosition + direction * frameDistance
+			local newPosition =
+				startPosition + direction * frameDistance
 
 			root.CFrame = CFrame.lookAt(
 				newPosition,
@@ -306,11 +358,10 @@ local function dash()
 
 	dashing = false
 
-	if animationTrack then
-		animationTrack:Stop(0.1)
-	end
+	stopDashAnimation()
 
 	task.wait(COOLDOWN)
+
 	canDash = true
 end
 
