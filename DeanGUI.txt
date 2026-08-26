@@ -199,6 +199,41 @@ local StopCorner = Instance.new("UICorner")
 StopCorner.CornerRadius = UDim.new(0, 6)
 StopCorner.Parent = StopBtn
 
+-- Animation Ownership Bypass Attempt
+local function tryLoadAnimation(animId)
+    local anim = Instance.new("Animation")
+    anim.AnimationId = animId
+    
+    -- Attempt 1: Spoof creator if possible
+    local success = pcall(function()
+        if sethiddenproperty then
+            -- Try to spoof the internal creator ID to match the game
+            sethiddenproperty(anim, "Creator", game.CreatorId)
+        end
+    end)
+    
+    if not success then
+        -- Fallback: try alternative property names
+        pcall(function()
+            if sethiddenproperty then
+                sethiddenproperty(anim, "CreatorId", game.CreatorId)
+            end
+        end)
+    end
+    
+    -- Attempt to load
+    local track = animator:LoadAnimation(anim)
+    
+    -- If load succeeded, destroy the template (track keeps reference)
+    if track then
+        anim:Destroy()
+        return track
+    else
+        anim:Destroy()
+        return nil
+    end
+end
+
 -- Animation State
 local currentTrack = nil
 local currentAnimName = nil
@@ -223,7 +258,7 @@ local function stopCurrentAnimation()
     end
 end
 
--- Function to play animation
+-- Function to play animation (with ownership bypass)
 local function playAnimation(animName, animData)
     -- Stop current animation first (smooth transition)
     if currentTrack then
@@ -231,19 +266,42 @@ local function playAnimation(animName, animData)
         task.wait(0.15)
     end
     
-    -- Load and play new animation
-    local anim = Instance.new("Animation")
-    anim.AnimationId = animData.id
+    local track = nil
     
-    local track = animator:LoadAnimation(anim)
-    track.Priority = animData.priority or Enum.AnimationPriority.Action
+    -- Try bypass method first for non-Roblox anims
+    -- (You can detect "official" vs custom by checking if it fails normally)
+    local normalAnim = Instance.new("Animation")
+    normalAnim.AnimationId = animData.id
+    local normalSuccess, normalResult = pcall(function()
+        return animator:LoadAnimation(normalAnim)
+    end)
+    normalAnim:Destroy()
     
-    if animData.loop then
-        track.Looped = true
+    if normalSuccess and normalResult then
+        -- Official anim or already-allowed, use normal load
+        track = normalResult
+        print("[ICEQUEEN] Loaded normally: " .. animName)
     else
-        track.Looped = false
+        -- Failed normal load, try bypass
+        print("[ICEQUEEN] Normal load failed, attempting bypass for: " .. animName)
+        local bypassSuccess, bypassResult = pcall(function()
+            return tryLoadAnimation(animData.id)
+        end)
+        
+        if bypassSuccess and bypassResult then
+            track = bypassResult
+            print("[ICEQUEEN] Bypass succeeded: " .. animName)
+        else
+            warn("[ICEQUEEN] Bypass failed for: " .. animName)
+            StatusLabel.Text = "Status: Failed to load \"" .. animName .. "\""
+            StatusLabel.TextColor3 = Color3.fromRGB(255, 100, 100)
+            return
+        end
     end
     
+    -- Configure track
+    track.Priority = animData.priority or Enum.AnimationPriority.Action
+    track.Looped = animData.loop or false
     track:Play(0.2)
     
     currentTrack = track
@@ -275,9 +333,6 @@ local function playAnimation(animName, animData)
         humanoid.JumpPower = 50
         humanoid.AutoRotate = true
     end
-    
-    -- Clean up animation object
-    anim:Destroy()
 end
 
 -- Create buttons for each animation
@@ -397,6 +452,11 @@ end)
 if not animator then
     animator = humanoid:WaitForChild("Animator")
 end
+
+-- Debug info
+print("Game CreatorId: " .. tostring(game.CreatorId))
+print("PlaceId: " .. tostring(game.PlaceId))
+print("sethiddenproperty available: " .. tostring(sethiddenproperty ~= nil))
 
 print("ICEQUEEN_GUI loaded successfully!")
 print("Animations available: Spin, Hand on Heart, Blow, Headshake")
