@@ -1,158 +1,150 @@
-local P=game:GetService("Players")
-local me=P.LocalPlayer
-local g=Instance.new("ScreenGui",me:WaitForChild("PlayerGui"))
-local f=Instance.new("Frame",g);f.Size=UDim2.fromOffset(180,250);f.Position=UDim2.fromOffset(20,100)
-local l=Instance.new("UIListLayout",f)
+local Players = game:GetService("Players")
+local UserInputService = game:GetService("UserInputService")
+
+local LocalPlayer = Players.LocalPlayer
+
+--// GUI
+local gui = Instance.new("ScreenGui")
+gui.Name = "PlayerTeleportGui"
+gui.ResetOnSpawn = false
+gui.Parent = LocalPlayer:WaitForChild("PlayerGui")
+
+local frame = Instance.new("Frame")
+frame.Size = UDim2.fromOffset(280, 350)
+frame.Position = UDim2.new(0, 40, 0.5, -175)
+frame.BackgroundColor3 = Color3.fromRGB(25, 25, 30)
+frame.BorderSizePixel = 0
+frame.Parent = gui
+
+Instance.new("UICorner", frame).CornerRadius = UDim.new(0, 10)
+
+local title = Instance.new("TextLabel")
+title.Size = UDim2.new(1, 0, 0, 45)
+title.BackgroundColor3 = Color3.fromRGB(40, 40, 48)
+title.Text = "PLAYER TELEPORT"
+title.TextColor3 = Color3.new(1, 1, 1)
+title.Font = Enum.Font.GothamBold
+title.TextSize = 17
+title.Parent = frame
+
+Instance.new("UICorner", title).CornerRadius = UDim.new(0, 10)
+
+--// Draggable
+local dragging = false
+local dragStart
+local startPosition
+
+title.InputBegan:Connect(function(input)
+	if input.UserInputType == Enum.UserInputType.MouseButton1
+		or input.UserInputType == Enum.UserInputType.Touch then
+
+		dragging = true
+		dragStart = input.Position
+		startPosition = frame.Position
+	end
+end)
+
+UserInputService.InputChanged:Connect(function(input)
+	if not dragging then return end
+
+	if input.UserInputType == Enum.UserInputType.MouseMovement
+		or input.UserInputType == Enum.UserInputType.Touch then
+
+		local delta = input.Position - dragStart
+
+		frame.Position = UDim2.new(
+			startPosition.X.Scale,
+			startPosition.X.Offset + delta.X,
+			startPosition.Y.Scale,
+			startPosition.Y.Offset + delta.Y
+		)
+	end
+end)
+
+UserInputService.InputEnded:Connect(function(input)
+	if input.UserInputType == Enum.UserInputType.MouseButton1
+		or input.UserInputType == Enum.UserInputType.Touch then
+		dragging = false
+	end
+end)
+
+--// Player list
+local list = Instance.new("ScrollingFrame")
+list.Position = UDim2.fromOffset(10, 55)
+list.Size = UDim2.new(1, -20, 1, -65)
+list.BackgroundTransparency = 1
+list.BorderSizePixel = 0
+list.ScrollBarThickness = 5
+list.Parent = frame
+
+local layout = Instance.new("UIListLayout")
+layout.Padding = UDim.new(0, 6)
+layout.Parent = list
+
+local busy = false
 
 local function refresh()
-	for _,x in ipairs(f:GetChildren()) do if x:IsA("TextButton") then x:Destroy() end end
-	for _,p in ipairs(P:GetPlayers()) do if p~=me then
-		local b=Instance.new("TextButton",f);b.Size=UDim2.new(1,0,0,30);b.Text=p.Name
-		b.MouseButton1Click:Connect(function()
-			if p.Character and p.Character:FindFirstChild("HumanoidRootPart") then
-				me.Character:PivotTo(p.Character.HumanoidRootPart.CFrame)
-			end
-		end)
-	end end
-end
-P.PlayerAdded:Connect(refresh);P.PlayerRemoving:Connect(refresh);refresh()
-f.Active=true;f.Draggable=true
-rame
-                track.TimePosition = track.Length - 0.05
-                StatusLabel.Text = "Status: Blow (Paused at end)"
-                StatusLabel.TextColor3 = Color3.fromRGB(255, 200, 100)
-            end
-        end)
-    else
-        isBlowPlaying = false
-        humanoid.WalkSpeed = 16
-        humanoid.JumpPower = 50
-        humanoid.AutoRotate = true
-    end
-end
+	for _, child in ipairs(list:GetChildren()) do
+		if child:IsA("TextButton") then
+			child:Destroy()
+		end
+	end
 
--- Create buttons for each animation
-for animName, animData in pairs(ANIMATIONS) do
-    local btn = Instance.new("TextButton")
-    btn.Name = animName
-    btn.Parent = ButtonContainer
-    btn.BackgroundColor3 = Color3.fromRGB(15, 52, 96)
-    btn.BorderSizePixel = 0
-    btn.Size = UDim2.new(1, 0, 0, 40)
-    btn.Font = Enum.Font.SourceSansBold
-    btn.TextSize = 15
-    btn.Text = animName
-    btn.TextColor3 = Color3.new(1, 1, 1)
-    btn.ZIndex = 11
-    btn.LayoutOrder = 0
-    
-    local btnCorner = Instance.new("UICorner")
-    btnCorner.CornerRadius = UDim.new(0, 6)
-    btnCorner.Parent = btn
-    
-    -- Hover effects
-    btn.MouseEnter:Connect(function()
-        TweenService:Create(btn, TweenInfo.new(0.2), {BackgroundColor3 = Color3.fromRGB(74, 144, 217)}):Play()
-    end)
-    
-    btn.MouseLeave:Connect(function()
-        if currentAnimName ~= animName then
-            TweenService:Create(btn, TweenInfo.new(0.2), {BackgroundColor3 = Color3.fromRGB(15, 52, 96)}):Play()
-        end
-    end)
-    
-    -- Click handler
-    btn.MouseButton1Click:Connect(function()
-        -- Reset all button colors
-        for _, child in pairs(ButtonContainer:GetChildren()) do
-            if child:IsA("TextButton") then
-                TweenService:Create(child, TweenInfo.new(0.2), {BackgroundColor3 = Color3.fromRGB(15, 52, 96)}):Play()
-            end
-        end
-        
-        -- Highlight active button
-        TweenService:Create(btn, TweenInfo.new(0.2), {BackgroundColor3 = Color3.fromRGB(100, 200, 100)}):Play()
-        
-        playAnimation(animName, animData)
-    end)
+	for _, player in ipairs(Players:GetPlayers()) do
+		if player ~= LocalPlayer then
+
+			local button = Instance.new("TextButton")
+			button.Size = UDim2.new(1, -5, 0, 40)
+			button.BackgroundColor3 = Color3.fromRGB(55, 55, 65)
+			button.TextColor3 = Color3.new(1, 1, 1)
+			button.TextSize = 15
+			button.Font = Enum.Font.Gotham
+			button.Text = player.DisplayName .. "  @" .. player.Name
+			button.Parent = list
+
+			Instance.new("UICorner", button).CornerRadius = UDim.new(0, 6)
+
+			button.MouseButton1Click:Connect(function()
+				if busy then return end
+				busy = true
+
+				-- Countdown
+				for i = 2, 1, -1 do
+					title.Text = "Teleporting in " .. i .. "..."
+					task.wait(1)
+				end
+
+				-- Re-check that the player still exists
+				if player.Parent then
+					local targetCharacter = player.Character
+					local myCharacter = LocalPlayer.Character
+
+					local targetRoot = targetCharacter
+						and targetCharacter:FindFirstChild("HumanoidRootPart")
+
+					local myRoot = myCharacter
+						and myCharacter:FindFirstChild("HumanoidRootPart")
+
+					if targetRoot and myRoot then
+						myRoot.CFrame =
+							targetRoot.CFrame + Vector3.new(0, 3, 0)
+					end
+				end
+
+				title.Text = "PLAYER TELEPORT"
+				busy = false
+			end)
+		end
+	end
+
+	list.CanvasSize = UDim2.fromOffset(
+		0,
+		layout.AbsoluteContentSize.Y + 10
+	)
 end
 
--- Stop button handler
-StopBtn.MouseButton1Click:Connect(function()
-    stopCurrentAnimation()
-    -- Reset all button colors
-    for _, child in pairs(ButtonContainer:GetChildren()) do
-        if child:IsA("TextButton") then
-            TweenService:Create(child, TweenInfo.new(0.2), {BackgroundColor3 = Color3.fromRGB(15, 52, 96)}):Play()
-        end
-    end
-end)
+-- Automatically update when someone joins/leaves
+Players.PlayerAdded:Connect(refresh)
+Players.PlayerRemoving:Connect(refresh)
 
--- Close button handler
-CloseBtn.MouseButton1Click:Connect(function()
-    stopCurrentAnimation()
-    MainFrame:TweenPosition(UDim2.new(0.5, -150, 0, -300), "InOut", "Quart", 0.5, true, nil)
-    task.wait(0.5)
-    MainFrame:Destroy()
-end)
-
--- Drag functionality (same as Infinite Yield)
-local function dragGUI(gui)
-    task.spawn(function()
-        local dragging
-        local dragInput
-        local dragStart = Vector3.new(0,0,0)
-        local startPos
-        local function update(input)
-            local delta = input.Position - dragStart
-            local Position = UDim2.new(startPos.X.Scale, startPos.X.Offset + delta.X, startPos.Y.Scale, startPos.Y.Offset + delta.Y)
-            TweenService:Create(gui, TweenInfo.new(.20), {Position = Position}):Play()
-        end
-        gui.InputBegan:Connect(function(input)
-            if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
-                dragging = true
-                dragStart = input.Position
-                startPos = gui.Position
-
-                input.Changed:Connect(function()
-                    if input.UserInputState == Enum.UserInputState.End then
-                        dragging = false
-                    end
-                end)
-            end
-        end)
-        gui.InputChanged:Connect(function(input)
-            if input.UserInputType == Enum.UserInputType.MouseMovement or input.UserInputType == Enum.UserInputType.Touch then
-                dragInput = input
-            end
-        end)
-        UserInputService.InputChanged:Connect(function(input)
-            if input == dragInput and dragging then
-                update(input)
-            end
-        end)
-    end)
-end
-
-dragGUI(MainFrame)
-
--- Character respawn handler
-player.CharacterAdded:Connect(function(newChar)
-    character = newChar
-    humanoid = newChar:WaitForChild("Humanoid")
-    animator = humanoid:WaitForChild("Animator")
-    stopCurrentAnimation()
-end)
-
--- Initial animation setup
-if not animator then
-    animator = humanoid:WaitForChild("Animator")
-end
-
--- Debug info
-print("Game CreatorId: " .. tostring(game.CreatorId))
-print("PlaceId: " .. tostring(game.PlaceId))
-print("sethiddenproperty available: " .. tostring(sethiddenproperty ~= nil))
-
-print("ICEQUEEN_GUI loaded successfully!")
-print("Animations available: Spin, Hand on Heart, Blow, Headshake")
+refresh()
